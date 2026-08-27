@@ -44,3 +44,46 @@ export async function fetchYoutubeOEmbed(videoUrl: string): Promise<YoutubeOEmbe
     if (!res.ok) throw new Error(`oEmbed lookup failed (${res.status})`);
     return res.json();
 }
+
+// A bare playlist URL (youtube.com/playlist?list=...) isn't a supported
+// oEmbed resource — YouTube's oEmbed endpoint only covers individual videos.
+// There's no equivalent no-key public API for playlists, so this instead
+// reads the playlist page's own og:title/og:image meta tags directly, the
+// same public metadata a link-preview/unfurl would read.
+export function isPlaylistOnlyUrl(url: string): boolean {
+    try {
+        const { hostname, pathname, searchParams } = new URL(url);
+        return /(^|\.)youtube\.com$/.test(hostname) && pathname === "/playlist" && searchParams.has("list");
+    } catch {
+        return false;
+    }
+}
+
+function decodeHtmlEntities(str: string): string {
+    return str
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, "\"")
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">");
+}
+
+export interface YoutubePlaylistMeta {
+    title: string;
+    thumbnail?: string;
+}
+
+export async function fetchYoutubePlaylistMeta(playlistUrl: string): Promise<YoutubePlaylistMeta> {
+    const res = await fetch(playlistUrl);
+    if (!res.ok) throw new Error(`playlist page fetch failed (${res.status})`);
+    const html = await res.text();
+
+    const titleMatch = html.match(/<meta property="og:title" content="([^"]*)"/);
+    const imageMatch = html.match(/<meta property="og:image" content="([^"]*)"/);
+    if (!titleMatch) throw new Error("could not find playlist title");
+
+    return {
+        title: decodeHtmlEntities(titleMatch[1]),
+        thumbnail: imageMatch?.[1],
+    };
+}

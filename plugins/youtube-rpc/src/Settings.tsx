@@ -6,7 +6,7 @@ import { Forms } from "@vendetta/ui/components";
 import { showToast } from "@vendetta/ui/toasts";
 
 import { applyActivity, vstorage } from "./activity";
-import { fetchYoutubeOEmbed } from "./api";
+import { fetchYoutubeOEmbed, fetchYoutubePlaylistMeta, isPlaylistOnlyUrl } from "./api";
 
 const { FormRow, FormSection, FormText, FormInput, FormSwitchRow } = Forms;
 
@@ -25,12 +25,23 @@ export default function Settings() {
 
         setLoading(true);
         try {
-            const info = await fetchYoutubeOEmbed(url);
-            vstorage.videoUrl = url;
-            vstorage.title = info.title;
-            vstorage.channel = info.author_name;
-            vstorage.thumbnail = info.thumbnail_url;
-            showToast("動画情報を取得しました", getAssetIDByName("CircleCheckIcon-primary"));
+            if (isPlaylistOnlyUrl(url)) {
+                const meta = await fetchYoutubePlaylistMeta(url);
+                vstorage.videoUrl = url;
+                vstorage.title = `プレイリスト: ${meta.title}`;
+                vstorage.channel = "";
+                vstorage.thumbnail = meta.thumbnail ?? "";
+                showToast("プレイリスト情報を取得しました", getAssetIDByName("CircleCheckIcon-primary"));
+            } else {
+                const info = await fetchYoutubeOEmbed(url);
+                vstorage.videoUrl = url;
+                vstorage.title = info.title;
+                vstorage.channel = new URL(url).searchParams.has("list")
+                    ? `${info.author_name} • プレイリスト再生中`
+                    : info.author_name;
+                vstorage.thumbnail = info.thumbnail_url;
+                showToast("動画情報を取得しました", getAssetIDByName("CircleCheckIcon-primary"));
+            }
 
             if (vstorage.enabled) await applyActivity();
         } catch {
@@ -55,17 +66,17 @@ export default function Settings() {
         <RN.ScrollView style={{ flex: 1 }}>
             <FormSection title="使い方">
                 <FormText style={{ padding: 16 }}>
-                    見ているYouTube動画のURLを貼ると、タイトル・チャンネル名・サムネイルを自動取得して「視聴中」ステータスとして表示します。
+                    見ているYouTube動画のURLを貼ると、タイトル・チャンネル名・サムネイルを自動取得して「視聴中」ステータスとして表示します。プレイリストのURL (youtube.com/playlist?list=...) にも対応しています。
                 </FormText>
                 <FormText style={{ paddingHorizontal: 16, paddingBottom: 16, color: semanticColors.TEXT_FEEDBACK_CRITICAL }}>
                     注意: これはAvatar Overrideの他の機能と違い、ローカル表示ではありません。実際にDiscordのステータスとして送信され、フレンドや他のユーザーにも見えます。
                 </FormText>
             </FormSection>
 
-            <FormSection title="YouTube動画のURL">
+            <FormSection title="YouTube動画・プレイリストのURL">
                 <FormInput
-                    title="動画URL"
-                    placeholder="https://youtu.be/..."
+                    title="動画URL / プレイリストURL"
+                    placeholder="https://youtu.be/... または .../playlist?list=..."
                     value={urlInput}
                     onChange={(text: string) => setUrlInput(text)}
                 />
