@@ -7,8 +7,11 @@ export const vstorage = storage as {
     enabled: boolean;
     videoUrl: string;
     title: string;
-    channel: string;
+    channel: string; // plain channel name only, no decoration
+    fromPlaylist: boolean;
     thumbnail: string; // original https:// thumbnail URL from oEmbed
+    afkMode: boolean;
+    afkText: string;
 };
 
 // The same client-side trick every "Custom Rich Presence" plugin uses
@@ -20,29 +23,49 @@ export const vstorage = storage as {
 // profile/status.
 const SOCKET_ID = "YoutubeRPC@AvatarOverride";
 
-async function buildActivity() {
+async function buildYoutubeActivity() {
     if (!vstorage.title) return undefined;
 
     const assetPath = vstorage.thumbnail ? await getExternalAsset(vstorage.thumbnail) : undefined;
 
     return {
-        name: "YouTube",
+        // The channel name goes in `name` so the activity reads
+        // "<チャンネル名>を視聴中" instead of a generic "YouTubeを視聴中".
+        name: vstorage.channel || "YouTube",
         application_id: "0",
         type: 3, // Watching
         flags: 1, // Instance
         details: vstorage.title,
-        state: vstorage.channel ? `by ${vstorage.channel}` : undefined,
+        state: vstorage.fromPlaylist ? "プレイリスト再生中" : undefined,
         timestamps: { start: Date.now() },
         assets: assetPath
             ? { large_image: `mp:${assetPath}`, large_text: vstorage.channel || "YouTube" }
             : undefined,
+        // Discord never renders your own activity's buttons back to you —
+        // only other people viewing your profile see them. This isn't a bug;
+        // it's the same for every Rich Presence, including real games.
         buttons: vstorage.videoUrl ? ["動画を見る"] : undefined,
         metadata: vstorage.videoUrl ? { button_urls: [vstorage.videoUrl] } : undefined,
     };
 }
 
+function buildAfkActivity() {
+    return {
+        name: vstorage.afkText || "😴 寝ています",
+        application_id: "0",
+        type: 0, // Playing — Discord has no "verb-less" activity type outside the separate custom-status system
+        flags: 1,
+    };
+}
+
 export async function applyActivity() {
-    const activity = vstorage.enabled ? await buildActivity() : undefined;
+    // AFK mode always wins over the YouTube status when both are configured.
+    const activity = vstorage.afkMode
+        ? buildAfkActivity()
+        : vstorage.enabled
+            ? await buildYoutubeActivity()
+            : undefined;
+
     FluxDispatcher.dispatch({
         type: "LOCAL_ACTIVITY_UPDATE",
         activity: activity ?? {},

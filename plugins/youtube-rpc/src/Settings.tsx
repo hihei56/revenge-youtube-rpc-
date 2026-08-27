@@ -20,9 +20,8 @@ const { FormRow, FormSection, FormText, FormInput, FormSwitchRow } = Forms;
 function applyVideoSelection(video: YoutubePlaylistVideo, fromPlaylist: boolean) {
     vstorage.videoUrl = video.url;
     vstorage.title = video.title;
-    vstorage.channel = fromPlaylist
-        ? (video.channel ? `${video.channel} • プレイリスト再生中` : "プレイリスト再生中")
-        : video.channel;
+    vstorage.channel = video.channel;
+    vstorage.fromPlaylist = fromPlaylist;
     vstorage.thumbnail = video.thumbnail;
 }
 
@@ -59,6 +58,7 @@ export default function Settings() {
                     vstorage.videoUrl = url;
                     vstorage.title = `プレイリスト: ${meta.title}`;
                     vstorage.channel = "";
+                    vstorage.fromPlaylist = true;
                     vstorage.thumbnail = meta.thumbnail ?? "";
                     showToast("プレイリスト情報を取得しました", getAssetIDByName("CircleCheckIcon-primary"));
                 }
@@ -66,9 +66,8 @@ export default function Settings() {
                 setPlaylistVideos(null);
                 const info = await fetchYoutubeOEmbed(url);
                 vstorage.videoUrl = url;
-                vstorage.channel = new URL(url).searchParams.has("list")
-                    ? `${info.author_name} • プレイリスト再生中`
-                    : info.author_name;
+                vstorage.channel = info.author_name;
+                vstorage.fromPlaylist = new URL(url).searchParams.has("list");
                 vstorage.title = info.title;
                 vstorage.thumbnail = info.thumbnail_url;
                 showToast("動画情報を取得しました", getAssetIDByName("CircleCheckIcon-primary"));
@@ -98,6 +97,12 @@ export default function Settings() {
         showToast(value ? "ステータスに表示しました" : "ステータスを消しました", getAssetIDByName("CircleCheckIcon-primary"));
     };
 
+    const toggleAfk = async (value: boolean) => {
+        vstorage.afkMode = value;
+        await applyActivity();
+        showToast(value ? "AFKステータスに切り替えました" : "AFKステータスを解除しました", getAssetIDByName("CircleCheckIcon-primary"));
+    };
+
     return (
         <RN.ScrollView style={{ flex: 1 }}>
             <FormSection title="使い方">
@@ -106,6 +111,9 @@ export default function Settings() {
                 </FormText>
                 <FormText style={{ paddingHorizontal: 16, paddingBottom: 16, color: semanticColors.TEXT_FEEDBACK_CRITICAL }}>
                     注意: これはAvatar Overrideの他の機能と違い、ローカル表示ではありません。実際にDiscordのステータスとして送信され、フレンドや他のユーザーにも見えます。
+                </FormText>
+                <FormText style={{ paddingHorizontal: 16, paddingBottom: 16, color: semanticColors.TEXT_MUTED }}>
+                    「動画を見る」ボタンは、Discordの仕様上自分の画面には表示されません (他の人から見た時だけ表示されます)。実際のゲームのRich Presenceでも同じ仕様です。
                 </FormText>
             </FormSection>
 
@@ -180,7 +188,7 @@ export default function Settings() {
                         onChange={(text: string) => { vstorage.title = text; }}
                     />
                     <FormInput
-                        title="チャンネル名 (状態として表示)"
+                        title="チャンネル名 (「〜を視聴中」に表示)"
                         value={vstorage.channel}
                         onChange={(text: string) => { vstorage.channel = text; }}
                     />
@@ -193,6 +201,23 @@ export default function Settings() {
                     subLabel="オンにすると、上のプレビュー内容が実際にDiscordのステータスとして送信されます (フレンドにも見えます)"
                     value={vstorage.enabled}
                     onValueChange={toggleEnabled}
+                />
+            </FormSection>
+
+            <FormSection title="AFKモード">
+                <FormText style={{ paddingHorizontal: 16, paddingBottom: 8, color: semanticColors.TEXT_MUTED }}>
+                    寝ている時・離席中など、YouTube視聴中の表示より優先して固定のステータスを表示します。オフにすると、上の「ステータスに表示する」の状態に戻ります。
+                </FormText>
+                <FormInput
+                    title="AFK中に表示する文言"
+                    placeholder="😴 寝ています"
+                    value={vstorage.afkText}
+                    onChange={(text: string) => { vstorage.afkText = text; }}
+                />
+                <FormSwitchRow
+                    label="AFKモードを有効にする"
+                    value={vstorage.afkMode}
+                    onValueChange={toggleAfk}
                 />
             </FormSection>
         </RN.ScrollView>

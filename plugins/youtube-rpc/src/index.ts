@@ -9,9 +9,12 @@ export default {
         vstorage.videoUrl ??= "";
         vstorage.title ??= "";
         vstorage.channel ??= "";
+        vstorage.fromPlaylist ??= false;
         vstorage.thumbnail ??= "";
+        vstorage.afkMode ??= false;
+        vstorage.afkText ??= "";
 
-        if (vstorage.enabled) applyActivity();
+        if (vstorage.enabled || vstorage.afkMode) applyActivity();
         logger.log("[YoutubeRPC] loaded");
     },
     onUnload: () => {
