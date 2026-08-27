@@ -1,0 +1,9 @@
+{
+	"name": "YouTube Rich Presence",
+	"description": "Discordのステータスに、見ているYouTube動画を「視聴中」として表示します (フレンドなど他の人にも見えます)。",
+	"authors": [{ "name": "You", "id": "YOUR_ID_HERE" }],
+	"main": "src/index.ts",
+	"vendetta": {
+		"icon": "PlayIcon"
+	}
+}
