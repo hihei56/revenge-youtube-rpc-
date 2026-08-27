@@ -87,3 +87,50 @@ export async function fetchYoutubePlaylistMeta(playlistUrl: string): Promise<You
         thumbnail: imageMatch?.[1],
     };
 }
+
+export function getPlaylistId(url: string): string | undefined {
+    try {
+        return new URL(url).searchParams.get("list") ?? undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+export interface YoutubePlaylistVideo {
+    videoId: string;
+    url: string;
+    title: string;
+    channel: string;
+    thumbnail: string;
+}
+
+// YouTube's public Atom feed for a playlist (the same one RSS readers use —
+// no API key, no login) lists its videos with title/channel/thumbnail. It's
+// capped at the ~15 most recently added videos, which is enough for picking
+// "which video in this playlist am I watching" from Settings.
+export async function fetchYoutubePlaylistVideos(playlistId: string): Promise<YoutubePlaylistVideo[]> {
+    const res = await fetch(`https://www.youtube.com/feeds/videos.xml?playlist_id=${encodeURIComponent(playlistId)}`);
+    if (!res.ok) throw new Error(`playlist feed fetch failed (${res.status})`);
+    const xml = await res.text();
+
+    const videos: YoutubePlaylistVideo[] = [];
+    for (const entryMatch of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
+        const entry = entryMatch[1];
+        const videoId = entry.match(/<yt:videoId>([^<]+)<\/yt:videoId>/)?.[1];
+        const title = entry.match(/<title>([^<]*)<\/title>/)?.[1];
+        const channel = entry.match(/<name>([^<]*)<\/name>/)?.[1];
+        const thumbnail = entry.match(/<media:thumbnail url="([^"]+)"/)?.[1];
+        if (!videoId || !title) continue;
+
+        videos.push({
+            videoId,
+            url: `https://www.youtube.com/watch?v=${videoId}`,
+            title: decodeHtmlEntities(title),
+            channel: channel ? decodeHtmlEntities(channel) : "",
+            thumbnail: thumbnail ?? "",
+        });
+    }
+
+    if (videos.length === 0) throw new Error("could not find any videos in this playlist");
+    return videos;
+}

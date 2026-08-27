@@ -6,15 +6,32 @@ import { Forms } from "@vendetta/ui/components";
 import { showToast } from "@vendetta/ui/toasts";
 
 import { applyActivity, vstorage } from "./activity";
-import { fetchYoutubeOEmbed, fetchYoutubePlaylistMeta, isPlaylistOnlyUrl } from "./api";
+import {
+    fetchYoutubeOEmbed,
+    fetchYoutubePlaylistMeta,
+    fetchYoutubePlaylistVideos,
+    getPlaylistId,
+    isPlaylistOnlyUrl,
+    type YoutubePlaylistVideo,
+} from "./api";
 
 const { FormRow, FormSection, FormText, FormInput, FormSwitchRow } = Forms;
+
+function applyVideoSelection(video: YoutubePlaylistVideo, fromPlaylist: boolean) {
+    vstorage.videoUrl = video.url;
+    vstorage.title = video.title;
+    vstorage.channel = fromPlaylist
+        ? (video.channel ? `${video.channel} • プレイリスト再生中` : "プレイリスト再生中")
+        : video.channel;
+    vstorage.thumbnail = video.thumbnail;
+}
 
 export default function Settings() {
     useProxy(vstorage);
 
     const [urlInput, setUrlInput] = React.useState(vstorage.videoUrl);
     const [loading, setLoading] = React.useState(false);
+    const [playlistVideos, setPlaylistVideos] = React.useState<YoutubePlaylistVideo[] | null>(null);
 
     const fetchInfo = async () => {
         const url = urlInput.trim();
@@ -26,19 +43,33 @@ export default function Settings() {
         setLoading(true);
         try {
             if (isPlaylistOnlyUrl(url)) {
-                const meta = await fetchYoutubePlaylistMeta(url);
-                vstorage.videoUrl = url;
-                vstorage.title = `プレイリスト: ${meta.title}`;
-                vstorage.channel = "";
-                vstorage.thumbnail = meta.thumbnail ?? "";
-                showToast("プレイリスト情報を取得しました", getAssetIDByName("CircleCheckIcon-primary"));
+                const playlistId = getPlaylistId(url);
+                try {
+                    const videos = await fetchYoutubePlaylistVideos(playlistId!);
+                    setPlaylistVideos(videos);
+                    // Play the first video in the playlist by default — the
+                    // list below lets you switch to any other one.
+                    applyVideoSelection(videos[0], true);
+                    showToast("プレイリスト内の動画を取得しました", getAssetIDByName("CircleCheckIcon-primary"));
+                } catch {
+                    // Feed lookup failed for some reason — fall back to just
+                    // the playlist's own title/thumbnail instead of a specific video.
+                    const meta = await fetchYoutubePlaylistMeta(url);
+                    setPlaylistVideos(null);
+                    vstorage.videoUrl = url;
+                    vstorage.title = `プレイリスト: ${meta.title}`;
+                    vstorage.channel = "";
+                    vstorage.thumbnail = meta.thumbnail ?? "";
+                    showToast("プレイリスト情報を取得しました", getAssetIDByName("CircleCheckIcon-primary"));
+                }
             } else {
+                setPlaylistVideos(null);
                 const info = await fetchYoutubeOEmbed(url);
                 vstorage.videoUrl = url;
-                vstorage.title = info.title;
                 vstorage.channel = new URL(url).searchParams.has("list")
                     ? `${info.author_name} • プレイリスト再生中`
                     : info.author_name;
+                vstorage.title = info.title;
                 vstorage.thumbnail = info.thumbnail_url;
                 showToast("動画情報を取得しました", getAssetIDByName("CircleCheckIcon-primary"));
             }
@@ -49,6 +80,11 @@ export default function Settings() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const selectPlaylistVideo = async (video: YoutubePlaylistVideo) => {
+        applyVideoSelection(video, true);
+        if (vstorage.enabled) await applyActivity();
     };
 
     const toggleEnabled = async (value: boolean) => {
@@ -66,7 +102,7 @@ export default function Settings() {
         <RN.ScrollView style={{ flex: 1 }}>
             <FormSection title="使い方">
                 <FormText style={{ padding: 16 }}>
-                    見ているYouTube動画のURLを貼ると、タイトル・チャンネル名・サムネイルを自動取得して「視聴中」ステータスとして表示します。プレイリストのURL (youtube.com/playlist?list=...) にも対応しています。
+                    見ているYouTube動画のURLを貼ると、タイトル・チャンネル名・サムネイルを自動取得して「視聴中」ステータスとして表示します。プレイリストのURL (youtube.com/playlist?list=...) を貼った場合は、プレイリスト内の動画一覧から表示したい動画を選べます。
                 </FormText>
                 <FormText style={{ paddingHorizontal: 16, paddingBottom: 16, color: semanticColors.TEXT_FEEDBACK_CRITICAL }}>
                     注意: これはAvatar Overrideの他の機能と違い、ローカル表示ではありません。実際にDiscordのステータスとして送信され、フレンドや他のユーザーにも見えます。
@@ -87,6 +123,47 @@ export default function Settings() {
                     disabled={loading}
                 />
             </FormSection>
+
+            {!!playlistVideos && (
+                <FormSection title={`プレイリスト内の動画を選択 (${playlistVideos.length}件)`}>
+                    <FormText style={{ paddingHorizontal: 16, paddingBottom: 8, color: semanticColors.TEXT_MUTED }}>
+                        タップすると、その動画を「視聴中」として表示します。
+                    </FormText>
+                    {playlistVideos.map(video => (
+                        <RN.TouchableOpacity
+                            key={video.videoId}
+                            onPress={() => selectPlaylistVideo(video)}
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                paddingHorizontal: 16,
+                                paddingVertical: 8,
+                                backgroundColor: vstorage.videoUrl === video.url
+                                    ? "rgba(127,127,127,0.2)"
+                                    : undefined,
+                            }}
+                        >
+                            {!!video.thumbnail && (
+                                <RN.Image
+                                    source={{ uri: video.thumbnail }}
+                                    style={{ width: 64, height: 36, borderRadius: 4, marginRight: 12 }}
+                                    resizeMode="cover"
+                                />
+                            )}
+                            <RN.View style={{ flex: 1 }}>
+                                <RN.Text numberOfLines={2}>
+                                    {video.title}
+                                </RN.Text>
+                                {!!video.channel && (
+                                    <RN.Text style={{ color: semanticColors.TEXT_MUTED, fontSize: 12 }} numberOfLines={1}>
+                                        {video.channel}
+                                    </RN.Text>
+                                )}
+                            </RN.View>
+                        </RN.TouchableOpacity>
+                    ))}
+                </FormSection>
+            )}
 
             {!!vstorage.title && (
                 <FormSection title="プレビュー">
