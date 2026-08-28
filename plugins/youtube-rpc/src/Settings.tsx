@@ -30,7 +30,9 @@ export default function Settings() {
 
     const [urlInput, setUrlInput] = React.useState(vstorage.videoUrl);
     const [loading, setLoading] = React.useState(false);
-    const [playlistVideos, setPlaylistVideos] = React.useState<YoutubePlaylistVideo[] | null>(null);
+    const [playlistVideos, setPlaylistVideos] = React.useState<YoutubePlaylistVideo[] | null>(
+        vstorage.playlistVideos?.length ? vstorage.playlistVideos : null,
+    );
 
     const fetchInfo = async () => {
         const url = urlInput.trim();
@@ -46,6 +48,7 @@ export default function Settings() {
                 try {
                     const videos = await fetchYoutubePlaylistVideos(playlistId!);
                     setPlaylistVideos(videos);
+                    vstorage.playlistVideos = videos;
                     // Play the first video in the playlist by default — the
                     // list below lets you switch to any other one.
                     applyVideoSelection(videos[0], true);
@@ -55,6 +58,7 @@ export default function Settings() {
                     // the playlist's own title/thumbnail instead of a specific video.
                     const meta = await fetchYoutubePlaylistMeta(url);
                     setPlaylistVideos(null);
+                    vstorage.playlistVideos = [];
                     vstorage.videoUrl = url;
                     vstorage.title = `プレイリスト: ${meta.title}`;
                     vstorage.channel = "";
@@ -64,6 +68,7 @@ export default function Settings() {
                 }
             } else {
                 setPlaylistVideos(null);
+                vstorage.playlistVideos = [];
                 const info = await fetchYoutubeOEmbed(url);
                 vstorage.videoUrl = url;
                 vstorage.channel = info.author_name;
@@ -107,7 +112,7 @@ export default function Settings() {
         <RN.ScrollView style={{ flex: 1 }}>
             <FormSection title="使い方">
                 <FormText style={{ padding: 16 }}>
-                    見ているYouTube動画のURLを貼ると、タイトル・チャンネル名・サムネイルを自動取得して「視聴中」ステータスとして表示します。プレイリストのURL (youtube.com/playlist?list=...) を貼った場合は、プレイリスト内の動画一覧から表示したい動画を選べます。
+                    見ているYouTube動画のURLを貼ると、タイトル・チャンネル名・サムネイルを自動取得して「視聴中」ステータスとして表示します。プレイリストのURL (youtube.com/playlist?list=...) を貼った場合は、プレイリスト内の動画一覧から表示したい動画を選べるほか、「自動シャッフル」をオンにすると5分ごとに他の動画へランダムに自動で切り替わります。
                 </FormText>
                 <FormText style={{ paddingHorizontal: 16, paddingBottom: 16, color: semanticColors.TEXT_FEEDBACK_CRITICAL }}>
                     注意: これはAvatar Overrideの他の機能と違い、ローカル表示ではありません。実際にDiscordのステータスとして送信され、フレンドや他のユーザーにも見えます。
@@ -131,6 +136,19 @@ export default function Settings() {
                     disabled={loading}
                 />
             </FormSection>
+
+            {!!playlistVideos && playlistVideos.length > 1 && (
+                <FormSection title="自動シャッフル">
+                    <FormText style={{ paddingHorizontal: 16, paddingBottom: 8, color: semanticColors.TEXT_MUTED }}>
+                        オンにすると、5分ごとにプレイリスト内の他の動画へランダムに切り替わります (直前と同じ動画は選ばれません)。
+                    </FormText>
+                    <FormSwitchRow
+                        label="5分ごとにランダムな他の動画へ切り替える"
+                        value={vstorage.autoShuffle}
+                        onValueChange={(value: boolean) => { vstorage.autoShuffle = value; }}
+                    />
+                </FormSection>
+            )}
 
             {!!playlistVideos && (
                 <FormSection title={`プレイリスト内の動画を選択 (${playlistVideos.length}件)`}>

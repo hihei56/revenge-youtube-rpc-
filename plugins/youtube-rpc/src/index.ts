@@ -1,6 +1,6 @@
 import { logger } from "@vendetta";
 
-import { applyActivity, clearActivity, vstorage } from "./activity";
+import { applyActivity, clearActivity, startAutoShuffle, stopAutoShuffle, vstorage } from "./activity";
 import Settings from "./Settings";
 
 export default {
@@ -13,11 +13,15 @@ export default {
         vstorage.thumbnail ??= "";
         vstorage.afkMode ??= false;
         vstorage.afkText ??= "";
+        vstorage.autoShuffle ??= false;
+        vstorage.playlistVideos ??= [];
 
         if (vstorage.enabled || vstorage.afkMode) applyActivity();
+        startAutoShuffle();
         logger.log("[YoutubeRPC] loaded");
     },
     onUnload: () => {
+        stopAutoShuffle();
         clearActivity();
         logger.log("[YoutubeRPC] unloaded");
     },

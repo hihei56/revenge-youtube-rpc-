@@ -1,7 +1,7 @@
 import { FluxDispatcher } from "@vendetta/metro/common";
 import { storage } from "@vendetta/plugin";
 
-import { getExternalAsset } from "./api";
+import { getExternalAsset, type YoutubePlaylistVideo } from "./api";
 
 export const vstorage = storage as {
     enabled: boolean;
@@ -12,6 +12,8 @@ export const vstorage = storage as {
     thumbnail: string; // original https:// thumbnail URL from oEmbed
     afkMode: boolean;
     afkText: string;
+    autoShuffle: boolean; // when fromPlaylist, jump to a random other video from playlistVideos every SHUFFLE_INTERVAL_MS
+    playlistVideos: YoutubePlaylistVideo[]; // cached video list for the current playlist, set by Settings.tsx's fetchInfo
 };
 
 // The same client-side trick every "Custom Rich Presence" plugin uses
@@ -79,4 +81,50 @@ export function clearActivity() {
         activity: {},
         socketId: SOCKET_ID,
     });
+}
+
+const SHUFFLE_INTERVAL_MS = 5 * 60 * 1000;
+
+// Excludes the currently-playing video from the random pick so the next
+// video is never the same one twice in a row (what "連続しない" asked for),
+// rather than a plain random pick that could reselect the current video.
+function pickRandomOtherVideo(): YoutubePlaylistVideo | undefined {
+    const videos = vstorage.playlistVideos;
+    if (!videos || videos.length < 2) return undefined;
+    const others = videos.filter(v => v.url !== vstorage.videoUrl);
+    if (others.length === 0) return undefined;
+    return others[Math.floor(Math.random() * others.length)];
+}
+
+export async function shuffleToNextVideo() {
+    const next = pickRandomOtherVideo();
+    if (!next) return;
+
+    vstorage.videoUrl = next.url;
+    vstorage.title = next.title;
+    vstorage.channel = next.channel;
+    vstorage.thumbnail = next.thumbnail;
+    await applyActivity();
+}
+
+let shuffleInterval: ReturnType<typeof setInterval> | undefined;
+
+// Started unconditionally at onLoad and left running for the plugin's whole
+// lifetime; the interval body re-checks all the relevant toggles on every
+// tick, so turning autoShuffle on/off in Settings doesn't need to
+// start/stop this interval itself.
+export function startAutoShuffle() {
+    stopAutoShuffle();
+    shuffleInterval = setInterval(() => {
+        if (vstorage.autoShuffle && vstorage.fromPlaylist && vstorage.enabled && !vstorage.afkMode) {
+            shuffleToNextVideo();
+        }
+    }, SHUFFLE_INTERVAL_MS);
+}
+
+export function stopAutoShuffle() {
+    if (shuffleInterval) {
+        clearInterval(shuffleInterval);
+        shuffleInterval = undefined;
+    }
 }
