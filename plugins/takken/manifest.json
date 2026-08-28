@@ -1,0 +1,9 @@
+{
+	"name": "宅建クイズ (Takken Quiz)",
+	"description": "宅建士試験の対策クイズ。○×モードとhell級の個数問題モードを分野別に出題。XP・レベルで成長を実感しながら、想起学習で記憶に定着させます。",
+	"authors": [{ "name": "You", "id": "YOUR_ID_HERE" }],
+	"main": "src/index.ts",
+	"vendetta": {
+		"icon": "PencilIcon"
+	}
+}
