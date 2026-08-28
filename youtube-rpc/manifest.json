@@ -1,1 +1,1 @@
-{"name":"YouTube Rich Presence","description":"Discordのステータスに、見ているYouTube動画を「視聴中」として表示します (フレンドなど他の人にも見えます)。","authors":[{"name":"You","id":"YOUR_ID_HERE"}],"main":"index.js","vendetta":{"icon":"PlayIcon"},"hash":"dbd6486c11049153caa8b407aaa7662667409087ce838b42f31fd1df53c02a9a"}
+{"name":"YouTube Rich Presence","description":"Discordのステータスに、見ているYouTube動画を「視聴中」として表示します (フレンドなど他の人にも見えます)。","authors":[{"name":"You","id":"YOUR_ID_HERE"}],"main":"index.js","vendetta":{"icon":"PlayIcon"},"hash":"ea6532465cfbf32b3e3d16db9d1bbd2b3a414bea7d122e42a7abcbebae0f5718"}
