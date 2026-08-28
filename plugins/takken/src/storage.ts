@@ -7,6 +7,7 @@ export const vstorage = storage as {
     totalAnswered: number;
     totalCorrect: number;
     bestCombo: number;
+    chatCombo: number;
     sessions: SessionRecord[];
     qstats: Record<string, QuestionStat>;
 };
@@ -18,6 +19,7 @@ export function initStorage() {
     vstorage.totalAnswered ??= 0;
     vstorage.totalCorrect ??= 0;
     vstorage.bestCombo ??= 0;
+    vstorage.chatCombo ??= 0;
     vstorage.sessions ??= [];
     vstorage.qstats ??= {};
 }

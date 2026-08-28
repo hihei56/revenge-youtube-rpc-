@@ -2,19 +2,9 @@ import { React, ReactNative as RN } from "@vendetta/metro/common";
 import { semanticColors } from "@vendetta/ui";
 
 import ProgressBar from "../components/ProgressBar";
-import {
-    COMBO_BONUS_EVERY,
-    KOSUU_SESSION_LEN,
-    KOSUU_TIME_SEC,
-    MARU_BATSU_SESSION_LEN,
-    MARU_BATSU_TIME_SEC,
-    XP_COMBO_BONUS,
-    XP_KOSUU_CORRECT,
-    XP_MARU_BATSU_CORRECT,
-    XP_SPEED_BONUS_KOSUU,
-    XP_SPEED_BONUS_MARU,
-} from "../logic/constants";
+import { KOSUU_SESSION_LEN, KOSUU_TIME_SEC, MARU_BATSU_SESSION_LEN, MARU_BATSU_TIME_SEC } from "../logic/constants";
 import { pickKosuuSession, pickMaruBatsuSession, recordAnswer } from "../logic/quizEngine";
+import { computeXpForAnswer } from "../logic/scoring";
 import { CATEGORIES } from "../types";
 import type { Category, KosuuQuestion, MaruBatsuQuestion, Mode } from "../types";
 
@@ -92,17 +82,10 @@ export default function Quiz({
         const nextCombo = isCorrect ? combo + 1 : 0;
         setCombo(nextCombo);
         if (nextCombo > bestCombo) setBestCombo(nextCombo);
+        if (isCorrect) setCorrectCount(c => c + 1);
 
-        let gained = 0;
-        if (isCorrect) {
-            const base = mode === "maru_batsu" ? XP_MARU_BATSU_CORRECT : XP_KOSUU_CORRECT;
-            gained += base;
-            if (timeLeft > timeLimit * 0.6) {
-                gained += mode === "maru_batsu" ? XP_SPEED_BONUS_MARU : XP_SPEED_BONUS_KOSUU;
-            }
-            if (nextCombo % COMBO_BONUS_EVERY === 0) gained += XP_COMBO_BONUS;
-            setCorrectCount(c => c + 1);
-        }
+        const fast = timeLeft > timeLimit * 0.6;
+        const gained = computeXpForAnswer(mode, isCorrect, fast, nextCombo);
         setXpGained(x => x + gained);
     }
 
